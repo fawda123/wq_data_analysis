@@ -128,7 +128,7 @@ example(mean)
 
 ```
 
-### Example dataset: import, wranging, and plotting
+### Example dataset: import, wrangling, and plotting
 
 <https://nceas.github.io/oss-lessons/data-munging-qa-qc-cleaning/data-munging-qa-qc-cleaning.html>
 
@@ -221,7 +221,7 @@ head(tb_agg)
 
 Some basic plots:
 
-```{r, fig.width = 7, fig.height = 4}
+```{r, fig.width = 9, fig.height = 4}
 plot(lnchla ~ date, tb_sub)
 plot(lnchla ~ date, tb_sub, type = 'l')
 boxplot(lnchla ~ yr, tb_sub)
@@ -230,7 +230,7 @@ barplot(tb_agg$avechl, names.arg = tb_agg$yr)
 
 Or use [ggplot](http://ggplot2.org/):
 
-```{r, fig.width = 7, fig.height = 9, warning = F, message = F}
+```{r, fig.width = 9, fig.height = 9, warning = F, message = F}
 ggplot(tb_sub, aes(x = lnchla)) + 
     geom_histogram() + 
     facet_wrap(~yr, ncol = 3)
@@ -268,8 +268,96 @@ str(sf_dat)
 head(sf_dat)
 ```
 
+## Modelling 
+
 ### WRTDS
 
-The tidal (estuarine) adaptation of WRTDS can be downloaded from CRAN: [WRTDStidal](https://cran.rstudio.com/web/packages/WRTDStidal/index.html).  Additional information is available on the GitHub page: [desicription](https://github.com/fawda123/WRTDStidal), [tutorial](https://fawda123.github.io/WRTDStidal/descrip).   
+The tidal (estuarine) adaptation of WRTDS can be downloaded from CRAN: [WRTDStidal](https://cran.rstudio.com/web/packages/WRTDStidal/index.html).  Additional information is available on the GitHub page: [description](https://github.com/fawda123/WRTDStidal), [tutorial](https://fawda123.github.io/WRTDStidal/descrip).   
 
 ### GAMs
+
+Excellent blog about time series modelling with GAMs: <https://petolau.github.io/Analyzing-double-seasonal-time-series-with-GAM-in-R/>
+
+[Beck and Murphy 2017](http://dx.doi.org/10.1111/1752-1688.12489) provides some context of GAMs vs WRTDS, also see [Harding et al. 2016](https://link.springer.com/article/10.1007/s12237-015-0023-7).  [Wood 2006](https://www.crcpress.com/Generalized-Additive-Models-An-Introduction-with-R-Second-Edition/Wood/p/book/9781498728331) is comprehensive on the theory and [Zuur 2012](http://highstat.com/index.php/beginner-s-guide-to-generalized-additive-models-with-r) is more applied.  
+
+Here is some example code we used in our 2017 paper, using the [mgcv](https://cran.r-project.org/web/packages/mgcv/index.html) package:
+
+```{r, message = F, warning = F, fig.width = 9, fig.height = 4}
+# install.packages('mgcv')
+library(mgcv)  
+
+# format the data to model
+data(pe_dat)
+pe_sub <- pe_dat %>% 
+  filter(STATION %in% 'TF1.6') %>% 
+  mutate(
+    doy = yday(date), 
+    decyr = decimal_date(date), 
+    mo = month(date)
+  )
+
+# model using a tensor product smooth for interactions
+# k is upper limits on knots to reduce overfit
+mod <- gam(lnchla ~ te(decyr, doy, lnQ, bs = c('tp', 'cc', 'tp'), k = c(5, 10, 5)), 
+  knots = list(doy = c(1, 366)), 
+  data = pe_sub, 
+  na.action = na.exclude
+  )
+
+# predictions
+pe_sub <- pe_sub %>% 
+  mutate(
+    pred = predict(mod)
+  )
+  
+# plot
+ggplot(pe_sub, aes(x = date)) + 
+  geom_point(aes(y = lnchla)) + 
+  geom_line(aes(y = pred))
+```
+
+Flow-normalization from the GAM (this can be improved):
+
+```{r, message = F, warning = F, fig.width = 9, fig.height = 4}
+flow_norm <- matrix(0, nrow = nrow(pe_sub), ncol = 2)
+
+Q_pred <- matrix(0, nrow = 29, ncol = 12)
+ct1 <- 1
+
+for(i in 1:12) {
+  
+  # identify all flows/salinities in this month
+  all_i_Qs <- with(pe_sub, lnQ[mo == i])
+  all_i_doy <- with(pe_sub, doy[mo == i])
+  all_i_dec <- with(pe_sub, decyr[mo == i])
+  
+  Q_pred <- matrix(0, nrow = length(all_i_Qs), ncol = length(all_i_Qs))
+  
+  for(q in 1:length(all_i_Qs)) {
+    newd_q <- data.frame(decyr = all_i_dec, lnQ = all_i_Qs[q], doy = all_i_doy)
+    Q_pred[, q] <- predict(mod, newd_q, se = FALSE)
+  }
+  
+  # average the predictions for each flow to have a values for each year, in this month
+  ct2 <- ct1 + length(all_i_Qs) - 1
+  flow_norm[ct1:ct2, 2] <- rowMeans(Q_pred)
+  flow_norm[ct1:ct2, 1] <- all_i_dec
+  ct1 <- ct2 + 1
+  
+}
+
+ord_fn <- order(flow_norm[, 1])
+fn_out <- flow_norm[ord_fn, ] %>% 
+  data.frame
+names(fn_out) <- c('decyr', 'pred_nrm')
+
+# add to original data object
+pe_sub <- pe_sub %>% 
+  left_join(fn_out, by = 'decyr') 
+
+# plot
+ggplot(pe_sub, aes(x = date)) + 
+  geom_point(aes(y = lnchla)) + 
+  geom_line(aes(y = pred)) + 
+  geom_line(aes(y = pred_nrm), col = 'red')
+```
