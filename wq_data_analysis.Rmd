@@ -1,0 +1,22 @@
+---
+title: "Intro to WQ data analysis"
+author: "Marcus Beck"
+output: 
+  html_document:
+    toc: no
+    self_contained: yes
+---
+
+### Data import
+
+### Data wrangling
+
+### Tampa Bay data
+
+### Patuxent Estuary data
+
+### San Francisco Delta data
+
+### WRTDS
+
+### GAMs
