@@ -3,20 +3,273 @@ title: "Intro to WQ data analysis"
 author: "Marcus Beck"
 output: 
   html_document:
-    toc: no
+    toc: yes
     self_contained: yes
 ---
 
-### Data import
+## Basics of R and RStudio
 
-### Data wrangling
+### What to do when you start a new session
+
+You will need to follow a few simple steps to use data and functions in R if you are starting a new session.  Here is a basic workflow of these steps.
+
+- Open a new or saved script that you will use to type code (.r file extension).  This is under the File menu on the top for both the basic R install and RStudio.
+
+- Load R packages that you will use.  The functions in a package will not be available unless the package is loaded.  The package must also be previously installed (see below for package installation).  You can put the packages you are using at the top of your script.
+
+- Set the working directory.  This is where R will load and save files.
+
+- Load any workspace that you were using previously.  This an R specific file format (.RData) that contains any and all objects that were in a previous workspace.  Ideally, you will have saved a workspace from your previous session.
+
+-Alternatively, use RStudio [projects](https://support.rstudio.com/hc/en-us/articles/200526207-Using-Projects) to organize data and your workspace. 
+
+Here is a sample script of this workflow.
+
+```{r eval = F}
+# my startup script
+
+# load any installed packages
+library(SWMPr)
+library(ggplot2)
+
+# set the working directory
+# change as needed
+setwd('C:/my_files')
+
+# load your previous workspace if you saved one
+# this must be in the working directory, otherwise use full path
+load(file = 'my_workspace.RData')
+
+# check what you loaded
+ls()
+
+```
+
+Other data formats can also be imported or loaded into R.  Flat text files or comma-separated files are commonly used, although R can import many other types.  Use the following functions to import text or csv data.  Don't forget to assign your data to an object.
+
+```{r eval = F}
+# import data and assign
+# data are in the working directory, or use a full path
+
+# import a csv file
+dat <- read.csv('my_data.csv', header = T)
+
+# importa a text file, separated by commas
+dat <- read.table('my_data.txt', header = T, sep = ',')
+```
+
+### What to do when you close a session
+
+Make sure you save your work when you close a session!  Save the script you're working with using the File menu at the top.  You will also want to save your data.  Just as data of different types can be imported, data can also be saved in different formats.  You will either want to save the whole workspace or individual parts (e.g., a data.frame as a .csv file).  
+
+```{r eval = F}
+# save the whole workspace as a .RData file
+# will be saved in the working directory
+save(list = ls(), file = 'my_workspace.RData')
+
+# save one object (e.g., dat) as a .RData file
+save(dat, file = 'my_data.RData')
+
+# save as .csv
+write.csv(dat, 'my_data.csv')
+
+# save as text file
+write.table(dat, 'my_data.txt', sep = ',', row.names = F, quote = F)
+
+```
+
+### Installing packages
+
+R installs and loads packages from its library on your computer.  You can see where your library is with `.libPaths()`.  Packages that you install from CRAN or elsewhere will go in this library.  R will also look here when you load a package to see if it is installed.  Most packages will be downloaded from CRAN, although you can also download packages from Github or BioConductor.  In the latter case, you will have to first download and load the devtools package off CRAN. Here are some basics for installing and loading a package.   
+
+```{r eval = F}
+# install a package from CRAN
+install.packages('ggplot2')
+
+# install packages from Github
+install.packages('devtools')
+library(devtools)
+install_github('fawda123/SWMPr')
+library(SWMPr)
+```
+
+### Keyboard shortcuts
+
+You can view all the keyboard shortcuts in RStudio by clicking on Help, then keyboard shortcuts on the top menu.  Here are some common shortcuts for Windows/Linux (* denotes RStudio only). 
+
+\texttt{CTRL+ENTER} \hfill run selection * \newline
+\texttt{CTRL+R} \hfill run selection \newline
+\texttt{CTRL+L} \hfill clear console \newline
+\texttt{CTRL+A} \hfill select all \newline
+\texttt{CTRL+C} \hfill copy \newline
+\texttt{CTRL+X} \hfill cut \newline
+\texttt{CTRL+V} \hfill paste \newline
+\texttt{CTRL+O} \hfill open document \newline
+\texttt{CTRL+S} \hfill save document \newline
+\texttt{CTRL+1} \hfill switch to source * \newline
+\texttt{CTRL+2} \hfill switch to console * \newline
+\texttt{ESC} \hfill stop current execution \newline
+\texttt{HOME} \hfill skip to beginning of line \newline
+\texttt{END} \hfill skip to end of line
+
+### Getting help
+
+If all else fails, a Google search will usually point you in the right direction. All of the documentation that comes with R and its packages are available online.  A quick search for a function or package will lead you to the documentation. You can also access the help files on your computer in R.
+
+```{r eval = F}
+# access a help file for a function
+help(mean)
+
+# or do this
+?mean
+
+# run the examples in the help file
+example(mean)
+
+```
+
+### Example dataset: import, wranging, and plotting
+
+<https://nceas.github.io/oss-lessons/data-munging-qa-qc-cleaning/data-munging-qa-qc-cleaning.html>
+
+See what's in your working directory, import a dataset, view some data summaries.
+
+```{r}
+# print your working directory
+getwd()
+
+# what's in the working directory
+dir()
+
+# what's in the data file
+dir('data')
+
+# import tampa bay data as csv, view summmaries
+tb_dat <- read.csv('data/tb_dat.csv', stringsAsFactors = F)
+dim(tb_dat)
+names(tb_dat)
+class(tb_dat)
+str(tb_dat)
+summary(tb_dat)
+head(tb_dat)
+tail(tb_dat)
+```
+
+You can easily manipulate data using packages in the [tidyverse](https://www.tidyverse.org/).  The tidyverse is a collection of packages for data import, manipulation, and plotting.  See [here](https://www.rstudio.com/wp-content/uploads/2015/02/data-wrangling-cheatsheet.pdf) for a cheatsheet on data manipulation. 
+
+```{r, eval = F}
+# install only once
+install.packages('tidyverse')
+
+# load every time
+library(tidyverse)
+```
+```{r echo = F, warning = F, message = F}
+library(tidyverse)
+```
+
+Some basic data manipulation - selecting/removing columns, filter by row, create new columns:
+
+```{r}
+# select specific columns
+tb_sub <- tb_dat %>% 
+  select(stationid, chla_ugl, date)
+head(tb_sub)
+
+# select only station 55
+tb_sub <- tb_sub %>% 
+  filter(stationid == 55)
+head(tb_sub)
+
+# create a new column
+tb_sub <- tb_sub %>% 
+  mutate(
+    lnchla = log(chla_ugl)
+  )
+head(tb_sub)
+
+# convert a character column to a date and arrange
+tb_sub <- tb_sub %>% 
+  mutate(
+    date = as.Date(date, format = '%Y-%m-%d')
+  ) %>% 
+  arrange(date)
+head(tb_sub)
+```
+
+Dates are easy to manipulate using the [lubridate](https://cran.r-project.org/web/packages/lubridate/vignettes/lubridate.html) package. 
+```{r message = F, warning = F}
+# install.packages(lubridate)
+library(lubridate)
+
+# create a year column
+tb_sub <- tb_sub %>%
+  mutate(
+    yr = year(date)
+  )
+head(tb_sub)
+```
+
+Get annual averages:
+
+```{r}
+tb_agg <- tb_sub %>% 
+  group_by(yr) %>% 
+  summarise(avechl = mean(lnchla))
+head(tb_agg)
+```
+
+Some basic plots:
+
+```{r, fig.width = 7, fig.height = 4}
+plot(lnchla ~ date, tb_sub)
+plot(lnchla ~ date, tb_sub, type = 'l')
+boxplot(lnchla ~ yr, tb_sub)
+barplot(tb_agg$avechl, names.arg = tb_agg$yr)
+```
+
+Or use [ggplot](http://ggplot2.org/):
+
+```{r, fig.width = 7, fig.height = 9, warning = F, message = F}
+ggplot(tb_sub, aes(x = lnchla)) + 
+    geom_histogram() + 
+    facet_wrap(~yr, ncol = 3)
+```
+
+## Supplied datasets
 
 ### Tampa Bay data
 
+Complete repository [here](https://github.com/fawda123/tb_chl), manuscript <http://dx.doi.org/10.1007/s10666-015-9452-8>
+
+```{r}
+data(tb_dat)
+str(tb_dat)
+head(tb_dat)
+```
+
 ### Patuxent Estuary data
+
+Complete repository [here](https://github.com/fawda123/patux_manu), manuscript <http://dx.doi.org/10.1111/1752-1688.12489>
+
+```{r}
+data(pe_dat)
+str(pe_dat)
+head(pe_dat)
+```
 
 ### San Francisco Delta data
 
+Complete repository [here](https://github.com/fawda123/sftrends_manu), manuscript [in prep](https://github.com/fawda123/sftrends_manu/raw/master/sftrends_manu.pdf)
+
+```{r}
+data(sf_dat)
+str(sf_dat)
+head(sf_dat)
+```
+
 ### WRTDS
+
+The tidal (estuarine) adaptation of WRTDS can be downloaded from CRAN: [WRTDStidal](https://cran.rstudio.com/web/packages/WRTDStidal/index.html).  Additional information is available on the GitHub page: [desicription](https://github.com/fawda123/WRTDStidal), [tutorial](https://fawda123.github.io/WRTDStidal/descrip).   
 
 ### GAMs
