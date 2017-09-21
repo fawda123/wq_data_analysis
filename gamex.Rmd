@@ -1,0 +1,144 @@
+---
+title: "GAM evaluation"
+author: "Marcus Beck"
+output: 
+  html_document:
+  toc: yes
+self_contained: yes
+---
+
+Observed log-chlorophyll at representative station in SF Bay Delta region.  
+```{r, message = F, warning = F, fig.width = 9, fig.height = 4}
+library(tidyverse)
+library(lubridate)
+library(mgcv)  
+library(plotly)
+
+# flow data, left moving window average of 30 days
+data(flow_dat)
+fl_dat <- flow_dat %>% 
+  filter(station %in% 'sjr') %>% 
+  mutate(
+    qsm = stats::filter(q, rep(1, 30)/30, sides = 1, method = 'convolution')
+  )
+  
+# format the data to model
+data(sf_dat)
+sf_sub <- sf_dat %>% 
+  filter(Site_Code %in% 'P8') %>% 
+  mutate(
+    doy = yday(Date), 
+    decyr = decimal_date(Date), 
+    yr = year(Date),
+    mo = month(Date, label = T)
+  ) %>% 
+  left_join(fl_dat, by = 'Date') %>% 
+  mutate(
+    lnQ = log(qsm), 
+    lnchl = log(chl)
+    ) %>% 
+  select(-q, -qsm, -station, -Latitude, -Longitude, -Location)
+
+# plot, all
+p <- ggplot(sf_sub, aes(x = Date, y = lnchl)) + 
+  geom_line() +
+  theme_bw() 
+ggplotly(p)
+
+# boxplot, by years
+p <- ggplot(sf_sub, aes(x = yr, y = lnchl)) + 
+  geom_boxplot() + 
+  theme_bw()
+ggplotly(p)
+
+# boxplot, by month
+p <- ggplot(sf_sub, aes(x = mo, y = lnchl)) + 
+  geom_boxplot() + 
+  theme_bw()
+ggplotly(p)
+```
+
+Some simple GAMs to explore annual, seasonal, and flow trends.
+```{r, message = F, warning = F, fig.width = 9, fig.height = 4}
+
+# annual only
+mod1 <- gam(lnchl ~ s(decyr, bs = 'tp'),
+  data = sf_sub, 
+  na.action = na.exclude
+  )
+
+# seasonal only
+mod2 <- gam(lnchl ~ s(doy, bs = 'cc'), 
+  knots = list(doy = c(1, 366)),
+  data = sf_sub, 
+  na.action = na.exclude
+  )
+ 
+# annual and seasonal, additive
+mod3 <- gam(lnchl ~ s(decyr, bs = 'tp') + 
+  s(doy, bs = 'cc'), 
+  knots = list(doy = c(1, 366)),
+  data = sf_sub, 
+  na.action = na.exclude
+  )
+
+# annual and seasonal, interaction
+mod4 <- gam(lnchl ~ te(decyr, doy, bs = c('tp', 'cc')),
+  knots = list(doy = c(1, 366)),
+  data = sf_sub, 
+  na.action = na.exclude
+  )
+
+# prediction data
+pred_dat <- data.frame(
+    decyr = seq(min(sf_sub$decyr), max(sf_sub$decyr), length = 1000)
+  ) %>% 
+  mutate(
+    Date = date_decimal(decyr), 
+    Date = as.Date(Date),
+    mo = month(Date, label = TRUE), 
+    doy = yday(Date), 
+    yr = year(Date)
+  )
+
+# # model using a tensor product smooth for interactions
+# modall <- gam(lnchl ~ te(decyr, doy, lnQ, bs = c('tp', 'cc', 'tp')), 
+#   knots = list(doy = c(1, 366)), 
+#   data = sf_sub, 
+#   na.action = na.exclude
+#   )
+
+# predictions
+sf_res <- pred_dat %>% 
+  mutate(
+    mod1 = predict(mod1, newdata = pred_dat), 
+    mod2 = predict(mod2, newdata = pred_dat), 
+    mod3 = predict(mod3, newdata = pred_dat), 
+    mod4 = predict(mod4, newdata = pred_dat)
+  ) %>% 
+  tidyr::gather('mods', 'pred', -Date, -mo, -doy, -decyr, -yr)
+
+# plot
+p <- ggplot(sf_res, aes(x = Date)) + 
+  geom_point(data = sf_sub, aes(y = lnchl), size = 0.5) + 
+  geom_line(aes(y = pred, colour = mods)) + 
+  theme_bw() + 
+  theme(
+    legend.position = 'top', 
+    legend.title = element_blank()
+    )
+ggplotly(p)
+```
+
+```{r, message = F, warning = F, fig.width = 9, fig.height = 6}
+# plot
+p <- ggplot(sf_res, aes(x = doy, group = factor(yr), colour = yr)) + 
+  geom_line(aes(y = pred)) + 
+  theme_bw() + 
+  theme(
+    legend.position = 'top', 
+    legend.title = element_blank()
+    ) + 
+  facet_wrap(~ mods, ncol = 2)
+ggplotly(p)
+```
