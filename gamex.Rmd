@@ -311,3 +311,57 @@ grid.arrange(
 )
 
 ```
+
+Backwards model selection, see [here](https://stat.ethz.ch/R-manual/R-devel/library/mgcv/html/gam.selection.html):
+```{r}
+mod <- gam(lnchl ~ s(dec_time, bs = 'tp') + 
+              s(doy, bs = 'cc') + 
+              s(flo, bs = 'tp') +
+              te(flo, doy, bs = c('tp', 'cc')) + 
+              te(flo, dec_time, bs = c('tp', 'tp')) +
+              te(dec_time, doy, bs = c('tp', 'cc')) +
+              te(dec_time, doy, flo, bs = c('tp', 'cc', 'tp')),
+            knots = list(doy = c(1, 366)),
+            data = sf_sub,
+            na.action = na.exclude
+)
+summary(mod)
+AIC(mod)
+
+mod <- gam(lnchl ~ s(dec_time, bs = 'tp') + 
+             s(doy, bs = 'cc') + 
+             te(flo, doy, bs = c('tp', 'cc')) + 
+             te(flo, dec_time, bs = c('tp', 'tp')) +
+             te(dec_time, doy, bs = c('tp', 'cc')) +
+             te(dec_time, doy, flo, bs = c('tp', 'cc', 'tp')),
+           knots = list(doy = c(1, 366)),
+           data = sf_sub,
+           na.action = na.exclude
+)
+summary(mod)
+AIC(mod)
+
+mod <- gam(lnchl ~ s(dec_time, bs = 'tp') + 
+             s(doy, bs = 'cc') + 
+             te(flo, doy, bs = c('tp', 'cc')) + 
+             te(flo, dec_time, bs = c('tp', 'tp')) +
+             te(dec_time, doy, bs = c('tp', 'cc')),
+           knots = list(doy = c(1, 366)),
+           data = sf_sub,
+           na.action = na.exclude
+)
+summary(mod)
+AIC(mod)
+
+mod <- gam(lnchl ~ s(dec_time, bs = 'tp') + 
+             s(doy, bs = 'cc') + 
+             te(flo, dec_time, bs = c('tp', 'tp')) +
+             te(dec_time, doy, bs = c('tp', 'cc')),
+           knots = list(doy = c(1, 366)),
+           data = sf_sub,
+           na.action = na.exclude
+)
+summary(mod)
+AIC(mod)
+```
+
