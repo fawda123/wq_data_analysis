@@ -204,8 +204,15 @@ mod8 <- gam(lnchl ~ te(flo, doy, bs = c('tp', 'cc')) + s(dec_time, bs = 'tp'),
   na.action = na.exclude
   )
 
+# model, all terms additive
+mod9 <- gam(lnchl ~ te(flo, doy, bs = c('tp', 'cc')) + te(flo, dec_time, bs = c('tp', 'tp')),
+  knots = list(doy = c(1, 366)),
+  data = sf_sub,
+  na.action = na.exclude
+  )
+
 # model using a tensor product smooth for interactions
-mod9 <- gam(lnchl ~ te(dec_time, doy, flo, bs = c('tp', 'cc', 'tp')),
+mod10 <- gam(lnchl ~ te(dec_time, doy, flo, bs = c('tp', 'cc', 'tp')),
   knots = list(doy = c(1, 366)),
   data = sf_sub,
   na.action = na.exclude
@@ -219,7 +226,8 @@ mods2 <- list(
   mod6 = mod6, 
   mod7 = mod7,
   mod8 = mod8,
-  mod9 = mod9
+  mod9 = mod9, 
+  mod10 = mod10
   )
 
 # smoother stats of GAMs
@@ -245,7 +253,8 @@ sf_res2 <- pred_dat %>%
     mod6 = predict(mod6, newdata = pred_dat), 
     mod7 = predict(mod7, newdata = pred_dat), 
     mod8 = predict(mod8, newdata = pred_dat),
-    mod9 = predict(mod9, newdata = pred_dat)
+    mod9 = predict(mod9, newdata = pred_dat),
+    mod10 = predict(mod10, newdata = pred_dat)
   ) %>% 
   tidyr::gather('mods', 'pred', -date, -mo, -doy, -dec_time, -yr, -flo)
 
@@ -285,14 +294,18 @@ p8 <- dynagam(mod8, pred_dat, ncol = 1, col_vec = cols) +
   ggtitle('mod8')
 p9 <- dynagam(mod9, pred_dat, ncol = 1, col_vec = cols) + 
   ptheme + 
+  theme(legend.position = 'none') + 
   ggtitle('mod9')
-pleg <- g_legend(p9)
-p9 <- p9 + 
+p10 <- dynagam(mod10, pred_dat, ncol = 1, col_vec = cols) + 
+  ptheme + 
+  ggtitle('mod10')
+pleg <- g_legend(p10)
+p10 <- p10 + 
   theme(legend.position = 'none')
 
 grid.arrange(
   pleg, 
-  arrangeGrob(p5, p6, p7, p8, p9, ncol = 5, bottom = 'lnQ', left = 'lnchl'), 
+  arrangeGrob(p5, p6, p7, p8, p9, p10, ncol = 6, bottom = 'lnQ', left = 'lnchl'), 
   ncol = 1, 
   heights = c(0.1, 1)
 )
