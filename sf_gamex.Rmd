@@ -70,44 +70,43 @@ ggplotly(p)
 
 Some simple GAMs to explore annual, seasonal trends.
 ```{r mods}
-# annual only
-mod1 <- gam(lnchl ~ s(dec_time, bs = 'tp'),
-  data = sf_mod, 
-  na.action = na.exclude
-  )
+# smooths to evaluate
+smths <- c(
+  "s(dec_time, bs = 'tp')",  
+  "s(doy, bs = 'cc')",
+  "te(dec_time, doy, bs = c('tp', 'cc'))"
+)
 
-# seasonal only
-mod2 <- gam(lnchl ~ s(doy, bs = 'cc'), 
-  knots = list(doy = c(1, 366)),
-  data = sf_mod, 
-  na.action = na.exclude
-  )
+# get all combinations of smoothers to model, one to many
+frms <- list()
+for(i in seq_along(smths)){
+  
+ frm <- combn(smths, i) %>%
+    apply(2, function(x){
+      paste(x, collapse = ' + ') %>% 
+        paste('lnchl ~ ', .) %>% 
+        formula
+    }) 
+  
+ frms <- c(frms, frm)
  
-# annual and seasonal, additive
-mod3 <- gam(lnchl ~ s(dec_time, bs = 'tp') + 
-  s(doy, bs = 'cc'), 
-  knots = list(doy = c(1, 366)),
-  data = sf_mod, 
-  na.action = na.exclude
+}
+
+# create models from smooth formula combinations
+mods <- map(frms, function(frm){
+  
+  gam(frm, 
+    knots = list(doy = c(1, 366)),
+    data = sf_mod, 
+    na.action = na.exclude
   )
 
-# annual and seasonal, interaction
-mod4 <- gam(lnchl ~ te(dec_time, doy, bs = c('tp', 'cc')),
-  knots = list(doy = c(1, 366)),
-  data = sf_mod, 
-  na.action = na.exclude
-  )
+})
+names(mods) <- paste0('mod', seq_along(mods))
 ```
 
 Summary stats of annual, seasonal models:
 ```{r modsum, results = 'asis'}
-mods <- list(
-  mod1 = mod1,
-  mod2 = mod2, 
-  mod3 = mod3,
-  mod4 = mod4
-  )
-
 # smoother stats of GAMs
 map(mods, ~ summary(.x)$s.table %>% data.frame %>% rownames_to_column('smoother')) %>% 
   enframe %>% 
@@ -123,7 +122,7 @@ map(mods, ~ data.frame(
   kable
 ```
 
-```{r predplo, fig.width = 6, fig.height = 3}
+```{r predplo, fig.width = 6, fig.height = 3, eval = T}
 # prediction data
 pred_dat <- data.frame(
     dec_time = seq(min(sf_mod$dec_time), max(sf_mod$dec_time), length = 1000)
@@ -140,14 +139,14 @@ pred_dat <- data.frame(
   select(-qsm)
 
 # predictions
-sf_res <- pred_dat %>% 
-  mutate(
-    mod1 = predict(mod1, newdata = pred_dat), 
-    mod2 = predict(mod2, newdata = pred_dat), 
-    mod3 = predict(mod3, newdata = pred_dat), 
-    mod4 = predict(mod4, newdata = pred_dat)
-  ) %>% 
-  tidyr::gather('mods', 'pred', -date, -mo, -doy, -dec_time, -yr, -flo)
+sf_res <- map(mods, function(x){
+  pred_dat %>% 
+    mutate(
+      pred = predict(x, newdata = pred_dat)
+    )
+  }) %>% 
+  enframe('mods') %>% 
+  unnest
 
 # plot
 p <- ggplot(sf_res, aes(x = date)) + 
@@ -161,7 +160,7 @@ p <- ggplot(sf_res, aes(x = date)) +
 ggplotly(p)
 ```
 
-```{r predplo2, message = F, warning = F, fig.width = 6, fig.height = 4}
+```{r predplo2, message = F, warning = F, fig.width = 6, fig.height = 8, eval = T}
 # plot
 p <- ggplot(sf_res, aes(x = doy, group = factor(yr), colour = yr)) + 
   geom_line(aes(y = pred)) + 
@@ -175,69 +174,70 @@ ggplotly(p)
 ```
 
 Adding flow data to the model:
-```{r flomod}
-# model, all terms additive
-mod5 <- gam(lnchl ~ s(dec_time, bs = 'tp') + s(doy, bs = 'cc') + s(flo, bs = 'tp'),
-  knots = list(doy = c(1, 366)),
-  data = sf_mod,
-  na.action = na.exclude
+```{r flomod, eval = T}
+# smooths to evaluate
+smths <- c(
+  "s(dec_time, bs = 'tp')",  
+  "s(doy, bs = 'cc')",
+  "s(flo, bs = 'tp')",
+  "te(flo, doy, bs = c('tp', 'cc'))", 
+  "te(flo, dec_time, bs = c('tp', 'tp'))",
+  "te(dec_time, doy, bs = c('tp', 'cc'))",
+  "te(dec_time, doy, flo, bs = c('tp', 'cc', 'tp'))"
+)
+
+# get all combinations of smoothers to model, one to many
+frms <- list()
+for(i in seq_along(smths)){
+  
+ frm <- combn(smths, i) %>%
+    apply(2, function(x){
+      paste(x, collapse = ' + ') %>% 
+        paste('lnchl ~ ', .) %>% 
+        formula
+    }) 
+  
+ frms <- c(frms, frm)
+ 
+}
+
+# create models from smooth formula combinations
+mods2 <- map(frms, function(frm){
+  
+  gam(frm, 
+    knots = list(doy = c(1, 366)),
+    data = sf_mod, 
+    na.action = na.exclude
   )
 
-# model, flo additive, interaction between dec_time, doy
-mod6 <- gam(lnchl ~ te(dec_time, doy, bs = c('tp', 'cc')) + s(flo, bs = 'tp'),
-  knots = list(doy = c(1, 366)),
-  data = sf_mod,
-  na.action = na.exclude
-  )
-
-# model, doy additive, interaction between dec_time and flow
-mod7 <- gam(lnchl ~ te(dec_time, flo, bs = c('tp', 'tp')) + s(doy, bs = 'cc'),
-  knots = list(doy = c(1, 366)),
-  data = sf_mod,
-  na.action = na.exclude
-  )
-
-# model, dec_time additive, interaction between flo and doy
-mod8 <- gam(lnchl ~ te(flo, doy, bs = c('tp', 'cc')) + s(dec_time, bs = 'tp'),
-  knots = list(doy = c(1, 366)),
-  data = sf_mod,
-  na.action = na.exclude
-  )
-
-# model, interaction between flow and doy, interaction between flo and dec_time
-mod9 <- gam(lnchl ~ te(flo, doy, bs = c('tp', 'cc')) + te(flo, dec_time, bs = c('tp', 'tp')),
-  knots = list(doy = c(1, 366)),
-  data = sf_mod,
-  na.action = na.exclude
-  )
-
-# model, all terms interaction
-mod10 <- gam(lnchl ~ te(dec_time, doy, flo, bs = c('tp', 'cc', 'tp')),
-  knots = list(doy = c(1, 366)),
-  data = sf_mod,
-  na.action = na.exclude
-  )
+})
+names(mods2) <- paste0('mod', seq_along(mods2))
 ```
 
-Summary stats of annual, seasonal, flow models:
-```{r modsum2, results = 'asis'}
-mods2 <- list(
-  mod5 = mod5,
-  mod6 = mod6, 
-  mod7 = mod7,
-  mod8 = mod8,
-  mod9 = mod9, 
-  mod10 = mod10
-  )
+Summary stats of best year/season model, year/season/flow model
+```{r modsum2, results = 'asis', eval = T}
+# best model with only season, year
+best1 <- map(mods,  AIC) %>% 
+  unlist %>% 
+  which.min %>% 
+  mods[[.]]
+
+# best model with season, year, flow
+best2 <- map(mods2, AIC) %>% 
+  unlist %>% 
+  which.min %>% 
+  mods2[[.]] 
+
+best <- list(best1 = best1, best2 = best2)
 
 # smoother stats of GAMs
-map(mods2, ~ summary(.x)$s.table %>% data.frame %>% rownames_to_column('smoother')) %>% 
+map(best, ~ summary(.x)$s.table %>% data.frame %>% rownames_to_column('smoother')) %>% 
   enframe %>% 
   unnest %>% 
   kable
 
 # summary stats of GAMs
-map(mods2, ~ data.frame(
+map(best, ~ data.frame(
     AIC = AIC(.x), 
     R2 = summary(.x)$r.sq)) %>% 
   enframe %>% 
@@ -245,18 +245,16 @@ map(mods2, ~ data.frame(
   kable
 ```
 
-```{r predplo3, fig.width = 6, fig.height = 3}
+```{r predplo3, fig.width = 6, fig.height = 3, eval = T}
 # predictions
-sf_res2 <- pred_dat %>% 
-  mutate(
-    mod5 = predict(mod5, newdata = pred_dat), 
-    mod6 = predict(mod6, newdata = pred_dat), 
-    mod7 = predict(mod7, newdata = pred_dat), 
-    mod8 = predict(mod8, newdata = pred_dat),
-    mod9 = predict(mod9, newdata = pred_dat),
-    mod10 = predict(mod10, newdata = pred_dat)
-  ) %>% 
-  tidyr::gather('mods', 'pred', -date, -mo, -doy, -dec_time, -yr, -flo)
+sf_res2 <- map(best, function(x){
+  pred_dat %>% 
+    mutate(
+      pred = predict(x, newdata = pred_dat)
+    )
+  }) %>% 
+  enframe('mods') %>% 
+  unnest
 
 # plot
 p <- ggplot(sf_res2, aes(x = date)) + 
@@ -270,87 +268,28 @@ p <- ggplot(sf_res2, aes(x = date)) +
 ggplotly(p)
 ```
 
-```{r predplo4, fig.width = 9, fig.height = 14}
+```{r predplo4, fig.width = 4, fig.height = 14, eval = T}
 ptheme <- theme(
   axis.title.x = element_blank(), 
   axis.title.y = element_blank()
 )
 cols <- 'Spectral'
-p5 <- dynagam(mod5, pred_dat, ncol = 1, col_vec = cols) + 
+pb1 <- dynagam(best1, pred_dat, ncol = 1, col_vec = cols) + 
   ptheme + 
   theme(legend.position = 'none') +
-  ggtitle('mod5')
-p6 <- dynagam(mod6, pred_dat, ncol = 1, col_vec = cols) + 
+  ggtitle('Best 1')
+pb2 <- dynagam(best2, pred_dat, ncol = 1, col_vec = cols) + 
   ptheme + 
-  theme(legend.position = 'none') + 
-  ggtitle('mod6')
-p7 <- dynagam(mod7, pred_dat, ncol = 1, col_vec = cols) + 
-  ptheme + 
-  theme(legend.position = 'none') + 
-  ggtitle('mod7')
-p8 <- dynagam(mod8, pred_dat, ncol = 1, col_vec = cols) + 
-  ptheme + 
-  theme(legend.position = 'none') + 
-  ggtitle('mod8')
-p9 <- dynagam(mod9, pred_dat, ncol = 1, col_vec = cols) + 
-  ptheme + 
-  theme(legend.position = 'none') + 
-  ggtitle('mod9')
-p10 <- dynagam(mod10, pred_dat, ncol = 1, col_vec = cols) + 
-  ptheme + 
-  ggtitle('mod10')
-pleg <- g_legend(p10)
-p10 <- p10 + 
+  ggtitle('Best2')
+pleg <- g_legend(pb2)
+pb2 <- pb2 + 
   theme(legend.position = 'none')
 
 grid.arrange(
   pleg, 
-  arrangeGrob(p5, p6, p7, p8, p9, p10, ncol = 6, bottom = 'lnQ', left = 'lnchl'), 
+  arrangeGrob(pb1, pb2, ncol = 2, bottom = 'lnQ', left = 'lnchl'), 
   ncol = 1, 
   heights = c(0.1, 1)
 )
-
-```
-
-Backwards model selection, see [here](https://stat.ethz.ch/R-manual/R-devel/library/mgcv/html/gam.selection.html):
-```{r}
-mod <- gam(lnchl ~ s(dec_time, bs = 'tp') + 
-              s(doy, bs = 'cc') + 
-              s(flo, bs = 'tp') +
-              te(flo, doy, bs = c('tp', 'cc')) + 
-              te(flo, dec_time, bs = c('tp', 'tp')) +
-              te(dec_time, doy, bs = c('tp', 'cc')) +
-              te(dec_time, doy, flo, bs = c('tp', 'cc', 'tp')),
-            knots = list(doy = c(1, 366)),
-            data = sf_mod,
-            na.action = na.exclude
-)
-summary(mod)
-AIC(mod)
-
-mod <- gam(lnchl ~ s(dec_time, bs = 'tp') + 
-              s(doy, bs = 'cc') + 
-              s(flo, bs = 'tp') +
-              te(flo, doy, bs = c('tp', 'cc')) + 
-              te(flo, dec_time, bs = c('tp', 'tp')) +
-              te(dec_time, doy, bs = c('tp', 'cc')),
-            knots = list(doy = c(1, 366)),
-            data = sf_mod,
-            na.action = na.exclude
-)
-summary(mod)
-AIC(mod)
-
-mod <- gam(lnchl ~ s(dec_time, bs = 'tp') + 
-              s(doy, bs = 'cc') + 
-              te(flo, doy, bs = c('tp', 'cc')) + 
-              te(flo, dec_time, bs = c('tp', 'tp')) +
-              te(dec_time, doy, bs = c('tp', 'cc')),
-            knots = list(doy = c(1, 366)),
-            data = sf_mod,
-            na.action = na.exclude
-)
-summary(mod)
-AIC(mod)
 ```
 
