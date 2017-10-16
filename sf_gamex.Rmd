@@ -23,8 +23,8 @@ library(gridExtra)
 source('R/funcs.R')
 
 # flow data, left moving window average of 30 days
-data(flow_dat)
-fl_dat <- flow_dat %>% 
+data(sf_fldat)
+fl_dat <- sf_fldat %>% 
   rename(date = Date) %>% 
   filter(station %in% 'sac') %>% 
   mutate(
