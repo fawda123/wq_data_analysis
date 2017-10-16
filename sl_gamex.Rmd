@@ -173,6 +173,28 @@ p <- ggplot(sl_res, aes(x = doy, group = factor(yr), colour = yr)) +
 ggplotly(p)
 ```
 
+Some overkill:
+```{r}
+toplo <- sl_res %>% 
+  filter(mods %in% 'mod7') %>% 
+  select(yr, doy, pred) %>% 
+  spread(doy, pred) %>% 
+  select(-yr) %>% 
+  as.matrix
+
+# for changing the aspect ratio 
+scene <- list(
+  aspectmode = 'manual', 
+  aspectratio = list(x = 1, y = 1, z = 0.7)
+)
+
+# create plot
+p1 <- plot_ly(z = ~toplo) %>% 
+  add_surface() %>% 
+  layout(scene = scene)
+p1
+```
+
 Adding flow data to the model:
 ```{r flomod, eval = T}
 # smooths to evaluate
