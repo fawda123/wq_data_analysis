@@ -22,6 +22,14 @@ library(WRTDStidal)
 library(gridExtra)
 source('R/funcs.R')
 
+# flow data, left moving window average of 30 days
+data(sl_fldat)
+fl_dat <- sl_fldat %>% 
+  rename(date = Date) %>% 
+  mutate(
+    qsm = stats::filter(q, rep(1, 30)/30, sides = 1, method = 'convolution')
+  )
+
 # format the data to model
 data(sl_dat)
 sl_mod <- sl_dat %>%
@@ -30,13 +38,15 @@ sl_mod <- sl_dat %>%
     doy = yday(date), 
     dec_time = decimal_date(date), 
     yr = year(date),
+    yr = factor(yr),
     mo = month(date, label = T)
   ) %>% 
+  left_join(fl_dat, by = 'date') %>% 
   mutate(
-    flo = sal, 
+    flo = log(qsm),
     lnchl = log(1 + chl)
     ) %>% 
-  select(-sal)
+  select(-q, -qsm, -sal)
 
 # plot, all
 p <- ggplot(sl_mod, aes(x = date, y = lnchl)) + 
@@ -112,7 +122,20 @@ map(mods, ~ data.frame(
 ```
 
 ```{r predplo, fig.width = 6, fig.height = 3, eval = T}
-pred_dat <- sl_mod
+# prediction data
+pred_dat <- data.frame(
+    dec_time = seq(min(sl_mod$dec_time), max(sl_mod$dec_time), length = 1000)
+  ) %>% 
+  mutate(
+    date = date_decimal(dec_time), 
+    date = as.Date(date),
+    mo = month(date, label = TRUE), 
+    doy = yday(date), 
+    yr = year(date)
+  ) %>% 
+  left_join(., fl_dat[, c('date', 'qsm')]) %>% 
+  mutate(flo = log(qsm)) %>% 
+  select(-qsm)
 
 # predictions
 sl_res <- map(mods, function(x){
