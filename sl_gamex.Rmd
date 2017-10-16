@@ -123,14 +123,15 @@ map(mods, ~ data.frame(
 
 ```{r predplo, fig.width = 6, fig.height = 3, eval = T}
 # prediction data
-pred_dat <- data.frame(
-    dec_time = seq(min(sl_mod$dec_time), max(sl_mod$dec_time), length = 1000)
-  ) %>% 
+pred_dat <- crossing(
+    yr = seq(floor(min(sl_mod$dec_time)), ceiling(max(sl_mod$dec_time))),
+    doy = seq(1, 365, by = 5)
+  ) %>%
+  unite('date', yr, doy, sep = '-', remove = F) %>% 
   mutate(
-    date = date_decimal(dec_time), 
-    date = as.Date(date),
+    date = as.Date(date, format = '%Y-%j'),
+    dec_time = decimal_date(date),
     mo = month(date, label = TRUE), 
-    doy = yday(date), 
     yr = year(date)
   ) %>% 
   left_join(., fl_dat[, c('date', 'qsm')]) %>% 
