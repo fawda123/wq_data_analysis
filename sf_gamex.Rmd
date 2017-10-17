@@ -13,7 +13,7 @@ opts_chunk$set(warning = F, message = F)
 ```
 
 Observed log-chlorophyll at representative station in SF Bay Delta region.  
-```{r proc, fig.width = 6, fig.height = 3}
+```{r proc, fig.width = 7, fig.height = 4}
 library(tidyverse)
 library(lubridate)
 library(mgcv)  
@@ -122,7 +122,7 @@ map(mods, ~ data.frame(
   kable
 ```
 
-```{r predplo, fig.width = 6, fig.height = 3, eval = T}
+```{r predplo, fig.width = 7, fig.height = 4, eval = T}
 # prediction data
 pred_dat <- data.frame(
     dec_time = seq(min(sf_mod$dec_time), max(sf_mod$dec_time), length = 1000)
@@ -160,7 +160,7 @@ p <- ggplot(sf_res, aes(x = date)) +
 ggplotly(p)
 ```
 
-```{r predplo2, message = F, warning = F, fig.width = 6, fig.height = 8, eval = T}
+```{r predplo2, message = F, warning = F, fig.width = 7, fig.height = 9, eval = T}
 # plot
 p <- ggplot(sf_res, aes(x = doy, group = factor(yr), colour = yr)) + 
   geom_line(aes(y = pred)) + 
@@ -245,7 +245,7 @@ map(best, ~ data.frame(
   kable
 ```
 
-```{r predplo3, fig.width = 6, fig.height = 3, eval = T}
+```{r predplo3, fig.width = 7, fig.height = 4, eval = T}
 # predictions
 sf_res2 <- map(best, function(x){
   pred_dat %>% 
