@@ -371,7 +371,7 @@ map(mods3, ~ data.frame(
 ```
 
 Summary stats of best three three models:
-```{r modsum3, results = 'asis'}
+```{r modsum4, results = 'asis'}
 # best model with season, year, flow
 best3 <- map(mods3, ~ summary(.x)$r.sq) %>% 
   unlist %>% 
