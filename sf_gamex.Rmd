@@ -12,6 +12,8 @@ library(knitr)
 opts_chunk$set(warning = F, message = F)
 ```
 
+## Observed data
+
 Observed log-chlorophyll at representative station in SF Bay Delta region.  
 ```{r proc, fig.width = 7, fig.height = 4}
 library(tidyverse)
@@ -67,6 +69,8 @@ p <- ggplot(sf_mod, aes(x = mo, y = lnchl)) +
   theme_bw()
 ggplotly(p)
 ```
+
+## GAMs with annual, seasonal trends
 
 Some simple GAMs to explore annual, seasonal trends.
 ```{r mods}
@@ -172,6 +176,8 @@ p <- ggplot(sf_res, aes(x = doy, group = factor(yr), colour = yr)) +
   facet_wrap(~ mods, ncol = 2)
 ggplotly(p)
 ```
+
+## GAMs with annual, seasonal, and flow trends
 
 Adding flow data to the model:
 ```{r flomod, eval = T}
