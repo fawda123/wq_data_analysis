@@ -1,0 +1,163 @@
+---
+title: "Figures"
+author: "Marcus Beck"
+output: 
+  html_document:
+    code_folding: hide
+toc: yes
+---
+
+```{r setup, echo = F}
+library(knitr)
+opts_chunk$set(warning = F, message = F, dpi = 300, fig.path = 'figs/')
+```
+
+## Observed data - both locations
+
+```{r proc, fig.width = 7, fig.height = 4}
+library(tidyverse)
+library(lubridate)
+library(mgcv)  
+library(plotly)
+library(WRTDStidal)
+library(gridExtra)
+source('R/funcs.R')
+
+##
+# sf delta C3
+
+# flow data, left moving window average of 30 days
+data(sf_fldat)
+fl_dat <- sf_fldat %>% 
+  rename(date = Date) %>% 
+  filter(station %in% 'sac') %>% 
+  mutate(
+    qsm = stats::filter(q, rep(1, 30)/30, sides = 1, method = 'convolution')
+  )
+  
+# format the data to model
+data(sf_dat)
+sf_mod <- sf_dat %>% 
+  filter(Site_Code %in% 'C3') %>% 
+  rename(date = Date) %>% 
+  mutate(
+    doy = yday(date), 
+    dec_time = decimal_date(date), 
+    yr = year(date),
+    yr = factor(yr),
+    mo = month(date, label = T)
+  ) %>% 
+  left_join(fl_dat, by = 'date') %>% 
+  mutate( # all variables ln-transformed
+    flo = log(qsm), 
+    lnchl = log(chl), 
+    tss = log(tss), 
+    nh = log(nh), 
+    dat = 'sf'
+    ) %>% 
+  select(dat, date, dec_time, yr, mo, chl,lnchl, flo, nh, tss)
+
+##
+# sle
+
+# flow data, left moving window average of 30 days
+data(sl_fldat)
+fl_dat <- sl_fldat %>% 
+  rename(date = Date) %>% 
+  mutate(
+    qsm = stats::filter(q, rep(1, 30)/30, sides = 1, method = 'convolution')
+  )
+
+# format the data to model
+data(sl_dat)
+sl_mod <- sl_dat %>%
+  rename(date = Date) %>% 
+  mutate(
+    doy = yday(date), 
+    dec_time = decimal_date(date), 
+    yr = year(date),
+    yr = factor(yr),
+    mo = month(date, label = T)
+  ) %>% 
+  left_join(fl_dat, by = 'date') %>% 
+  mutate(
+    flo = log(qsm),
+    lnchl = log(1 + chl), 
+    dat = 'sl'
+    ) %>% 
+  select(dat, date, dec_time, yr, mo, chl, lnchl, flo, nh, tss)
+
+mod <- bind_rows(sf_mod, sl_mod) %>% 
+  mutate(dat = factor(dat, levels = c('sf', 'sl'), labels = c('SF Delta', 'St. Lucie')))
+```
+
+```{r chlobs, fig.height = 4, fig.width = 8}
+
+mythm <- theme_minimal(base_family = 'serif') +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1), 
+    axis.title.x = element_blank(), 
+    # axis.title.y = element_blank(),
+    panel.border = element_rect(colour = 'black', fill = NA, size = 0.5), 
+    legend.position = 'top',
+    legend.title = element_blank()#,
+    # panel.grid.major = element_blank(), 
+    # panel.grid.minor = element_blank()
+  )
+
+ylab <- expression(paste("ln-chlorophyll (", italic(mu), "g ", L^-1, ")"))
+
+ggplot(mod, aes(x = date, y = chl, group = dat, colour = dat)) + 
+  geom_line() + 
+  geom_point() + 
+  scale_y_log10(ylab) +
+  mythm
+
+```
+
+```{r chlyr, fig.height = 4, fig.width = 8}
+
+mythm <- theme_minimal(base_family = 'serif') +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1), 
+    axis.title.x = element_blank(), 
+    # axis.title.y = element_blank(),
+    panel.border = element_rect(colour = 'black', fill = NA, size = 0.5), 
+    legend.position = 'top',
+    legend.title = element_blank()#,
+    # panel.grid.major = element_blank(), 
+    # panel.grid.minor = element_blank()
+  )
+
+ylab <- expression(paste("ln-chlorophyll (", italic(mu), "g ", L^-1, ")"))
+
+ggplot(mod, aes(x = yr, y = chl, fill = dat)) + 
+  geom_boxplot() + 
+  scale_y_log10(ylab) +
+  mythm
+
+```
+
+```{r chlmo, fig.height = 4, fig.width = 8}
+
+mythm <- theme_minimal(base_family = 'serif') +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1), 
+    axis.title.x = element_blank(), 
+    # axis.title.y = element_blank(),
+    panel.border = element_rect(colour = 'black', fill = NA, size = 0.5), 
+    legend.position = 'top',
+    legend.title = element_blank()#,
+    # panel.grid.major = element_blank(), 
+    # panel.grid.minor = element_blank()
+  )
+
+ylab <- expression(paste("ln-chlorophyll (", italic(mu), "g ", L^-1, ")"))
+
+ggplot(mod, aes(x = mo, y = chl, fill = dat)) + 
+  geom_boxplot() + 
+  scale_y_log10(ylab) +
+  mythm
+
+```
+
