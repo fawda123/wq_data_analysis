@@ -10,10 +10,13 @@ sl_dat <- read_excel('data/SE03_Chl_WQ.xlsx') %>%
   ) %>% 
   rename(
     chl = `CHLOROPHYLL-A`,
-    sal = SALINITY
+    sal = SALINITY,
+    tn = `KJELDAHL NITROGEN, TOTAL`,
+    tss = `TOTAL SUSPENDED SOLIDS`,
+    nh = `AMMONIA-N`
   ) %>% 
   filter(yr < 2015 & yr > 1990) %>% 
-  select(Date, chl, sal)
+  select(Date, chl, sal, nh, tn, tss)
 
 save(sl_dat, file = 'data/sl_dat.RData', compress = 'xz')
 
