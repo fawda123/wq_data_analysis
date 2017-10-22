@@ -45,26 +45,28 @@ sf_mod <- sf_dat %>%
     mo = month(date, label = T)
   ) %>% 
   left_join(fl_dat, by = 'date') %>% 
-  mutate(
+  mutate( # all variables ln-transformed
     flo = log(qsm), 
-    lnchl = log(chl)
+    chl = log(chl), 
+    tss = log(tss), 
+    nh = log(nh)
     ) %>% 
   select(-q, -qsm, -station, -Latitude, -Longitude, -Location)
 
 # plot, all
-p <- ggplot(sf_mod, aes(x = date, y = lnchl)) + 
+p <- ggplot(sf_mod, aes(x = date, y = chl)) + 
   geom_line() +
   theme_bw() 
 ggplotly(p)
 
 # boxplot, by years
-p <- ggplot(sf_mod, aes(x = yr, y = lnchl)) + 
+p <- ggplot(sf_mod, aes(x = yr, y = chl)) + 
   geom_boxplot() + 
   theme_bw()
 ggplotly(p)
 
 # boxplot, by month
-p <- ggplot(sf_mod, aes(x = mo, y = lnchl)) + 
+p <- ggplot(sf_mod, aes(x = mo, y = chl)) + 
   geom_boxplot() + 
   theme_bw()
 ggplotly(p)
@@ -88,7 +90,7 @@ for(i in seq_along(smths)){
  frm <- combn(smths, i) %>%
     apply(2, function(x){
       paste(x, collapse = ' + ') %>% 
-        paste('lnchl ~ ', .) %>% 
+        paste('chl ~ ', .) %>% 
         formula
     }) 
   
@@ -154,7 +156,7 @@ sf_res <- map(mods, function(x){
 
 # plot
 p <- ggplot(sf_res, aes(x = date)) + 
-  geom_point(data = sf_mod, aes(y = lnchl), size = 0.5) + 
+  geom_point(data = sf_mod, aes(y = chl), size = 0.5) + 
   geom_line(aes(y = pred, colour = mods)) + 
   theme_bw() + 
   theme(
@@ -180,7 +182,7 @@ ggplotly(p)
 ## GAMs with annual, seasonal, and flow trends
 
 Adding flow data to the model:
-```{r flomod, eval = T}
+```{r mods2, eval = F}
 # smooths to evaluate
 smths <- c(
   "s(dec_time, bs = 'tp')",  
@@ -199,7 +201,7 @@ for(i in seq_along(smths)){
  frm <- combn(smths, i) %>%
     apply(2, function(x){
       paste(x, collapse = ' + ') %>% 
-        paste('lnchl ~ ', .) %>% 
+        paste('chl ~ ', .) %>% 
         formula
     }) 
   
@@ -218,20 +220,22 @@ mods2 <- map(frms, function(frm){
 
 })
 names(mods2) <- paste0('mod', seq_along(mods2))
+save(mods2, file = 'data/sf_mods2.RData', compress = 'xz')
 ```
 
 Summary stats of best year/season model, year/season/flow model
 ```{r modsum2, results = 'asis', eval = T}
+data(sf_mods2)
 # best model with only season, year
-best1 <- map(mods,  AIC) %>% 
+best1 <- map(mods, ~ summary(.x)$r.sq) %>% 
   unlist %>% 
-  which.min %>% 
+  which.max %>% 
   mods[[.]]
 
 # best model with season, year, flow
-best2 <- map(mods2, AIC) %>% 
+best2 <- map(mods2, ~ summary(.x)$r.sq) %>% 
   unlist %>% 
-  which.min %>% 
+  which.max %>% 
   mods2[[.]] 
 
 best <- list(best1 = best1, best2 = best2)
@@ -264,7 +268,7 @@ sf_res2 <- map(best, function(x){
 
 # plot
 p <- ggplot(sf_res2, aes(x = date)) + 
-  geom_point(data = sf_mod, aes(y = lnchl), size = 0.5) + 
+  geom_point(data = sf_mod, aes(y = chl), size = 0.5) + 
   geom_line(aes(y = pred, colour = mods)) + 
   theme_bw() + 
   theme(
@@ -299,3 +303,117 @@ grid.arrange(
 )
 ```
 
+## Adding nitrogen and turbidity covariates
+
+```{r mods3, eval = T}
+# formula for best annual, seasonal, flow model
+strt <- best2$formula %>% 
+  as.character
+
+smths <- c(
+  "s(nh, bs = 'tp')",  
+  "s(tss, bs = 'tp')",
+  "te(nh, tss, bs = c('tp', 'tp'))"
+)
+
+# get all combinations of smoothers to model, one to many
+frmstab <- list()
+frms <- list()
+for(i in seq_along(smths)){
+  
+  # for the summary table  
+  frmtab <- combn(smths, i) %>%
+    apply(2, function(x){
+      paste(x, collapse = ' + ')
+      })
+  
+  # for the model
+  frm <- sapply(frmtab, function(x){  
+        paste('chl ~', strt[3], '+', x) %>% 
+          formula
+        })
+  
+  frmstab <- c(frmstab, frmtab)
+  frms <- c(frms, frm)
+ 
+}
+
+# create models from smooth formula combinations
+mods3 <- map(frms, function(frm){
+  
+  gam(frm, 
+    knots = list(doy = c(1, 366)),
+    data = sf_mod, 
+    na.action = na.exclude
+  )
+
+})
+names(mods3) <- paste0('mod', seq_along(mods3))
+```
+
+Summary of all nutrient, tss models:
+```{r modsum3, results = 'asis', eval = T}
+# smoother stats of GAMs
+map(mods3, ~ summary(.x)$s.table %>% data.frame %>% rownames_to_column('smoother')) %>% 
+  enframe %>% 
+  unnest %>% 
+  kable
+
+# summary stats of GAMs
+map(mods3, ~ data.frame(
+    AIC = AIC(.x), 
+    R2 = summary(.x)$r.sq)) %>% 
+  enframe %>% 
+  unnest %>% 
+  mutate(smth_added = frmstab) %>%
+  select(name, smth_added, everything()) %>% 
+  kable
+```
+
+Summary stats of best three three models:
+```{r modsum3, results = 'asis'}
+# best model with season, year, flow
+best3 <- map(mods3, ~ summary(.x)$r.sq) %>% 
+  unlist %>% 
+  which.max %>% 
+  mods3[[.]] 
+
+best <- list(best1 = best1, best2 = best2, best3 = best3)
+
+# smoother stats of GAMs
+map(best, ~ summary(.x)$s.table %>% data.frame %>% rownames_to_column('smoother')) %>% 
+  enframe %>% 
+  unnest %>% 
+  kable
+
+# summary stats of GAMs
+map(best, ~ data.frame(
+    AIC = AIC(.x), 
+    R2 = summary(.x)$r.sq)) %>% 
+  enframe %>% 
+  unnest %>% 
+  kable
+```
+
+```{r predplo5, fig.width = 7, fig.height = 4, eval = T}
+# predictions
+sf_res3 <- map(best, function(x){
+  sf_mod %>% 
+    mutate(
+      pred = predict(x)
+    )
+  }) %>% 
+  enframe('mods') %>% 
+  unnest
+
+# plot
+p <- ggplot(sf_res3, aes(x = date)) + 
+  geom_point(data = sf_mod, aes(y = chl), size = 0.5) + 
+  geom_line(aes(y = pred, colour = mods)) + 
+  theme_bw() + 
+  theme(
+    legend.position = 'top', 
+    legend.title = element_blank()
+    )
+ggplotly(p)
+```
